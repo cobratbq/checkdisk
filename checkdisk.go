@@ -21,30 +21,30 @@ func main() {
 		return
 	}
 	//Prepare signal handler
-	go signalHandler(cmd.Process)
+	stopSignal := make(chan struct{})
+	go signalHandler(stopSignal, cmd.Process)
 	//Start separate reader routine
-	go processReader(stderr)
+	go processHandler(stderr)
 	//Waiting until the process finishes
 	cmd.Wait()
+	close(stopSignal)
 }
 
-func processReader(from io.ReadCloser) {
-	fmt.Printf("Started cli reader.\n")
+func processHandler(from io.ReadCloser) {
 	var out = make(chan []byte)
 	go readLines(from, out)
 	for l := range out {
 		fmt.Printf("Line: %s\n", l)
 	}
-	fmt.Printf("Stopped cli reader.\n")
 }
 
 func readLines(from io.Reader, out chan<- []byte) {
-	var send = func(data []byte) {
+	var send = func(to chan<- []byte, data []byte) {
 		var result = make([]byte, len(data))
 		copy(result, data)
-		out <- result
+		to <- result
 	}
-	var buffer = make([]byte, 10)
+	var buffer = make([]byte, 80)
 	var fill = func() error {
 		n, err := from.Read(buffer)
 		if n < len(buffer) {
@@ -57,17 +57,20 @@ func readLines(from io.Reader, out chan<- []byte) {
 	for {
 		err := fill()
 		for _, c := range buffer {
-			if c == '\n' {
-				line = append(line, c)
-				send(line)
+			switch c {
+			case '\n':
+				send(out, line)
 				line = line[:0]
-			} else if c == '\b' && len(line) > 0 {
+				firstBackspace = true
+			case '\b':
 				if firstBackspace {
-					send(line)
+					send(out, line)
+					firstBackspace = false
 				}
-				line = line[:len(line)-1]
-				firstBackspace = false
-			} else {
+				if len(line) > 0 {
+					line = line[:len(line)-1]
+				}
+			default:
 				line = append(line, c)
 				firstBackspace = true
 			}
@@ -79,10 +82,14 @@ func readLines(from io.Reader, out chan<- []byte) {
 	close(out)
 }
 
-func signalHandler(proc *os.Process) {
+func signalHandler(stopsig <-chan struct{}, proc *os.Process) {
 	var sigchan = make(chan os.Signal)
 	signal.Notify(sigchan, os.Interrupt)
-	sig := <-sigchan
-	fmt.Printf("Signal caught! Passing on ...")
-	proc.Signal(sig)
+	select {
+	case sig := <-sigchan:
+		proc.Signal(sig)
+	case <-stopsig:
+		break
+	}
+	signal.Stop(sigchan)
 }
