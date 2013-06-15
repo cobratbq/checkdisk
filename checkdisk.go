@@ -39,11 +39,7 @@ func processHandler(from io.ReadCloser) {
 }
 
 func readLines(from io.Reader, out chan<- []byte) {
-	var send = func(to chan<- []byte, data []byte) {
-		var result = make([]byte, len(data))
-		copy(result, data)
-		to <- result
-	}
+	defer close(out)
 	var buffer = make([]byte, 80)
 	var fill = func() error {
 		n, err := from.Read(buffer)
@@ -79,17 +75,27 @@ func readLines(from io.Reader, out chan<- []byte) {
 			break
 		}
 	}
-	close(out)
+}
+
+func send(to chan<- []byte, data []byte) {
+	var result = make([]byte, len(data))
+	copy(result, data)
+	to <- result
 }
 
 func signalHandler(stopsig <-chan struct{}, proc *os.Process) {
+	// Register for Interrupt signals.
 	var sigchan = make(chan os.Signal)
 	signal.Notify(sigchan, os.Interrupt)
-	select {
-	case sig := <-sigchan:
-		proc.Signal(sig)
-	case <-stopsig:
-		break
+	defer signal.Stop(sigchan)
+	// Start signaling loop.
+	var done = false
+	for !done {
+		select {
+		case sig := <-sigchan:
+			proc.Signal(sig)
+		case <-stopsig:
+			done = true
+		}
 	}
-	signal.Stop(sigchan)
 }
