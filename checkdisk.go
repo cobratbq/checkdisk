@@ -159,19 +159,25 @@ func processHandler(from io.ReadCloser, report chan<- *CheckState) {
 			if err != nil {
 				log.Printf("Error: %s\n", err.Error())
 			}
-			state = &CheckState{From: from, To: to, InterruptBlock: nil}
+			state = &CheckState{From: from, To: to}
 		case progressPattern.Match(l):
 			var matches = progressPattern.FindSubmatch(l)
 			progress, err := strconv.ParseFloat(string(matches[1]), 0)
 			if err != nil {
 				log.Printf("Error: %s\n", err.Error())
 			}
+			extractErrorNumbers(matches, 3, state.Errors[:])
 			log.Printf("Progress: %2.2f%%\n", progress)
 		case summaryPattern.Match(l):
-			log.Println("Check done.")
+			var matches = summaryPattern.FindSubmatch(l)
+			extractErrorNumbers(matches, 2, state.Errors[:])
+			log.Printf("Check done. %s errors found.", matches[1])
 		case interruptedPattern.Match(l):
 			var matches = interruptedPattern.FindSubmatch(l)
-			stopBlock, _ := strconv.ParseUint(string(matches[1]), 10, 64)
+			stopBlock, err := strconv.ParseUint(string(matches[1]), 10, 64)
+			if err != nil {
+				log.Printf("Error: %s\n", err.Error())
+			}
 			state.InterruptBlock = &stopBlock
 		case emptyProgressPattern.Match(l):
 		case finishedPattern.Match(l):
@@ -184,10 +190,29 @@ func processHandler(from io.ReadCloser, report chan<- *CheckState) {
 	report <- state
 }
 
+func extractErrorNumbers(matches [][]byte, offset uint, data []uint64) {
+	value, err := strconv.ParseUint(string(matches[offset]), 10, 64)
+	if err != nil {
+		log.Printf("Error: %s\n", err.Error())
+	}
+	data[0] = value
+	value, err = strconv.ParseUint(string(matches[offset+1]), 10, 64)
+	if err != nil {
+		log.Printf("Error: %s\n", err.Error())
+	}
+	data[1] = value
+	value, err = strconv.ParseUint(string(matches[offset+2]), 10, 64)
+	if err != nil {
+		log.Printf("Error: %s\n", err.Error())
+	}
+	data[2] = value
+}
+
 type CheckState struct {
 	From           uint64
 	To             uint64
 	InterruptBlock *uint64
+	Errors         [3]uint64
 }
 
 func readLines(from io.Reader, out chan<- []byte) {
