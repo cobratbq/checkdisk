@@ -148,32 +148,36 @@ func processHandler(from io.ReadCloser, report chan<- *CheckState) {
 	go readLines(from, out)
 	var state *CheckState
 	for l := range out {
-		// TODO Still need to catch the error numbers and either store them or communicate them.
-		if startPattern.Match(l) {
+		switch {
+		case startPattern.Match(l):
 			var matches = startPattern.FindSubmatch(l)
-			from, _ := strconv.ParseUint(string(matches[1]), 10, 64)
-			to, _ := strconv.ParseUint(string(matches[2]), 10, 64)
+			from, err := strconv.ParseUint(string(matches[1]), 10, 64)
+			if err != nil {
+				log.Printf("Error: %s\n", err.Error())
+			}
+			to, err := strconv.ParseUint(string(matches[2]), 10, 64)
+			if err != nil {
+				log.Printf("Error: %s\n", err.Error())
+			}
 			state = &CheckState{From: from, To: to, InterruptBlock: nil}
-		} else if progressPattern.Match(l) {
+		case progressPattern.Match(l):
 			var matches = progressPattern.FindSubmatch(l)
 			progress, err := strconv.ParseFloat(string(matches[1]), 0)
 			if err != nil {
 				log.Printf("Error: %s\n", err.Error())
 			}
 			log.Printf("Progress: %2.2f%%\n", progress)
-		} else if emptyProgressPattern.Match(l) {
-			// Nothing to do since nothing actually got reported ...
-		} else if finishedPattern.Match(l) {
-			// Nothing to process ...
-		} else if summaryPattern.Match(l) {
+		case summaryPattern.Match(l):
 			log.Println("Check done.")
-		} else if interruptedPattern.Match(l) {
+		case interruptedPattern.Match(l):
 			var matches = interruptedPattern.FindSubmatch(l)
 			stopBlock, _ := strconv.ParseUint(string(matches[1]), 10, 64)
 			state.InterruptBlock = &stopBlock
-		} else if len(l) == 0 {
-			//Nothing to process in an empty line.
-		} else {
+		case emptyProgressPattern.Match(l):
+		case finishedPattern.Match(l):
+		case len(l) == 0:
+			// Nothing to do since nothing actually got reported ...
+		default:
 			log.Printf("Ignoring unknown line: '%s'\n", l)
 		}
 	}
