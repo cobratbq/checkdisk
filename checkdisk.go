@@ -51,6 +51,7 @@ func main() {
 	updateState(c, state)
 	if block := state.InterruptBlock; block != nil {
 		log.Printf("Check has been interrupted at block %d\n", *block)
+		log.Printf("So far (%d, %d, %d) errors have been found.\n", state.Errors[0], state.Errors[1], state.Errors[2])
 	}
 }
 
