@@ -14,6 +14,10 @@ import (
 )
 
 func main() {
+	if len(os.Args) < 2 {
+		fmt.Println("Please specify which device to check.")
+		return
+	}
 	c := initConfig()
 	var cmd *exec.Cmd
 	if c.State.InterruptBlock != nil {
@@ -166,11 +170,11 @@ func processHandler(from io.ReadCloser, report chan<- *CheckState) {
 			if err != nil {
 				log.Printf("Error: %s\n", err.Error())
 			}
-			extractErrorNumbers(matches, 3, state.Errors[:])
+			extractErrorNumbers(state.Errors[:], matches, 3)
 			log.Printf("Progress: %2.2f%%\n", progress)
 		case summaryPattern.Match(l):
 			var matches = summaryPattern.FindSubmatch(l)
-			extractErrorNumbers(matches, 2, state.Errors[:])
+			extractErrorNumbers(state.Errors[:], matches, 2)
 			log.Printf("Check done. %s errors found.", matches[1])
 		case interruptedPattern.Match(l):
 			var matches = interruptedPattern.FindSubmatch(l)
@@ -190,22 +194,14 @@ func processHandler(from io.ReadCloser, report chan<- *CheckState) {
 	report <- state
 }
 
-func extractErrorNumbers(matches [][]byte, offset uint, data []uint64) {
-	value, err := strconv.ParseUint(string(matches[offset]), 10, 64)
-	if err != nil {
-		log.Printf("Error: %s\n", err.Error())
+func extractErrorNumbers(data []uint64, matches [][]byte, offset uint) {
+	for i := uint(0); i < 3; i++ {
+		value, err := strconv.ParseUint(string(matches[offset+i]), 10, 64)
+		if err != nil {
+			log.Printf("Error: %s\n", err.Error())
+		}
+		data[i] = value
 	}
-	data[0] = value
-	value, err = strconv.ParseUint(string(matches[offset+1]), 10, 64)
-	if err != nil {
-		log.Printf("Error: %s\n", err.Error())
-	}
-	data[1] = value
-	value, err = strconv.ParseUint(string(matches[offset+2]), 10, 64)
-	if err != nil {
-		log.Printf("Error: %s\n", err.Error())
-	}
-	data[2] = value
 }
 
 type CheckState struct {
