@@ -21,7 +21,7 @@ func main() {
 	c := initConfig()
 	var cmd *exec.Cmd
 	if c.State.InterruptBlock != nil {
-		log.Printf("Resuming an earlier check.\n")
+		log.Printf("Resuming an earlier check. Error numbers recorded so far: (%d, %d, %d)\n", c.State.Errors[0], c.State.Errors[1], c.State.Errors[2])
 		cmd = exec.Command("/usr/sbin/badblocks", "-sv", c.Device, fmt.Sprintf("%d", c.State.To), fmt.Sprintf("%d", *c.State.InterruptBlock))
 	} else {
 		log.Printf("Starting a new check.\n")
@@ -103,7 +103,15 @@ func updateState(c *config, state *CheckState) {
 		}
 		readconf.Close()
 	}
-	states[c.Device] = state
+	if state.InterruptBlock == nil {
+		// No interrupt block means the check was finished completely,
+		// so just delete old state data.
+		delete(states, c.Device)
+	} else {
+		// Interrupt block, hence we need to resume the check at a
+		// later moment. Save the state data.
+		states[c.Device] = state
+	}
 	data, err := json.Marshal(states)
 	if err != nil {
 		log.Printf("Failed to marshal check state: %s\n", err.Error())
