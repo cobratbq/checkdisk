@@ -18,6 +18,10 @@ func main() {
 		fmt.Println("Please specify which device to check.")
 		return
 	}
+	if testReadAccess(os.Args[1]) == false {
+		fmt.Println("No permission to open this file or device.\nPlease start with sufficient privileges.")
+		return
+	}
 	c := initConfig()
 	var cmd *exec.Cmd
 	if c.State.InterruptBlock != nil {
@@ -53,6 +57,15 @@ func main() {
 		log.Printf("Check has been interrupted at block %d\n", *block)
 		log.Printf("So far (%d, %d, %d) errors have been found.\n", state.Errors[0], state.Errors[1], state.Errors[2])
 	}
+}
+
+func testReadAccess(fileName string) bool {
+	handle, err := os.Open(fileName)
+	if err != nil {
+		return false
+	}
+	handle.Close()
+	return true
 }
 
 const ConfigFileName = "checkdisk.conf"
