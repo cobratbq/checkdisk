@@ -26,10 +26,10 @@ func main() {
 	var cmd *exec.Cmd
 	if c.State.InterruptBlock != nil {
 		log.Printf("Resuming an earlier check. Error numbers recorded so far: (%d, %d, %d)\n", c.State.Errors[0], c.State.Errors[1], c.State.Errors[2])
-		cmd = exec.Command("/usr/sbin/badblocks", "-sv", c.Device, fmt.Sprintf("%d", c.State.To), fmt.Sprintf("%d", *c.State.InterruptBlock))
+		cmd = exec.Command("badblocks", "-sv", c.Device, fmt.Sprintf("%d", c.State.To), fmt.Sprintf("%d", *c.State.InterruptBlock))
 	} else {
 		log.Printf("Starting a new check.\n")
-		cmd = exec.Command("/usr/sbin/badblocks", "-sv", c.Device)
+		cmd = exec.Command("badblocks", "-sv", c.Device)
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
